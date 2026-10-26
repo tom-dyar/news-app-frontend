@@ -59,6 +59,10 @@ export function safeUrl(u) {
 	}
 }
 
+export function plural(n, word) {
+	return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
 export function timeAgo(date, now = new Date()) {
 	const s = Math.max(0, Math.round((now - date) / 1000));
 	if (s < 60) return "just now";
@@ -69,8 +73,12 @@ export function timeAgo(date, now = new Date()) {
 	];
 	for (const [secs, name] of units) {
 		if (s >= secs) {
-			const n = Math.floor(s / secs);
-			return `${n} ${name}${n === 1 ? "" : "s"} ago`;
+			return `${plural(Math.floor(s / secs), name)} ago`;
 		}
 	}
+}
+
+/** Seconds -> "N minute(s)", rounded up (used for the refresh cooldown message). */
+export function formatWait(seconds) {
+	return plural(Math.max(1, Math.ceil(seconds / 60)), "minute");
 }

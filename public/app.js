@@ -1,4 +1,4 @@
-import { TOPICS, buildQuery, groupByTopic, scoreClass, lastRefreshed, formatDate, safeUrl, timeAgo } from "./lib.js";
+import { TOPICS, buildQuery, groupByTopic, scoreClass, lastRefreshed, formatDate, formatWait, plural, safeUrl, timeAgo } from "./lib.js";
 
 const API = "https://news-app-backend.tom-dyar.workers.dev";
 
@@ -22,10 +22,6 @@ function fillSelect(select, options, selected) {
 fillSelect(els.topic, [["", "All topics"], ...TOPICS.map((t) => [t.id, t.title])], "");
 fillSelect(els.score, [["0", "Any score"], ...Array.from({ length: 10 }, (_, i) => [String(i + 1), `${i + 1}+`])], "0");
 fillSelect(els.limit, [10, 25, 50, 100].map((n) => [String(n), String(n)]), "50");
-
-function plural(n, word) {
-	return `${n} ${word}${n === 1 ? "" : "s"}`;
-}
 
 function setStatus(message, kind = "") {
 	els.status.hidden = !message;
@@ -94,6 +90,10 @@ async function loadArticles({ skeleton = true } = {}) {
 	}
 }
 
+function reloadQuietly() {
+	return Promise.all([loadArticles({ skeleton: false }), loadAll()]);
+}
+
 for (const select of [els.topic, els.score, els.limit]) select.addEventListener("change", () => loadArticles());
 
 els.refresh.addEventListener("click", async () => {
@@ -102,11 +102,18 @@ els.refresh.addEventListener("click", async () => {
 	els.refreshLabel.textContent = "Refreshing…";
 	setStatus("Searching the web for new articles on each topic. This usually takes 30–90 seconds.");
 	try {
-		const res = await fetch(`${API}/agent`, { method: "POST" });
-		if (!res.ok) throw new Error(`The agent returned ${res.status}`);
+		// Public endpoint: the server rate limits it (one run per hour) and returns counts only.
+		const res = await fetch(`${API}/refresh`, { method: "POST" });
+		if (res.status === 429) {
+			const { retryAfterSeconds } = await res.json();
+			await reloadQuietly();
+			setStatus(`The news was refreshed recently, so it can't be refreshed again yet. Try again in about ${formatWait(retryAfterSeconds)}.`);
+			return;
+		}
+		if (!res.ok) throw new Error(`The server returned ${res.status}`);
 		const run = await res.json();
-		await Promise.all([loadArticles({ skeleton: false }), loadAll()]);
-		const failed = run.topics.filter((t) => t.error).length;
+		await reloadQuietly();
+		const failed = run.topics.filter((t) => t.failed).length;
 		setStatus(
 			`Refresh complete: ${plural(run.inserted, "new article")} added, ${run.skipped} already known.` + (failed ? ` ${plural(failed, "topic")} failed.` : ""),
 			failed ? "error" : "ok",
