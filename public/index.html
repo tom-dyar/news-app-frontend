@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>News Intelligence Dashboard</title>
+  <meta name="description" content="Healthcare cybersecurity, AI, and legal news, curated and scored by AI.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-row">
+      <div>
+        <h1>News Intelligence</h1>
+        <p class="tagline">Healthcare cybersecurity, AI, and legal news &mdash; curated and scored by AI</p>
+      </div>
+      <div class="refresh-box">
+        <button id="refresh" class="btn" type="button">
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="refresh-label">Refresh</span>
+        </button>
+        <p id="last-refreshed" class="meta" aria-live="polite">Loading&hellip;</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="filters" aria-label="Filters">
+      <label>Topic
+        <select id="f-topic"></select>
+      </label>
+      <label>Minimum relevance
+        <select id="f-score"></select>
+      </label>
+      <label>Articles to show
+        <select id="f-limit"></select>
+      </label>
+      <p id="result-count" class="meta count" aria-live="polite"></p>
+    </section>
+
+    <div id="status" class="status" role="status" hidden></div>
+    <div id="content"></div>
+  </main>
+
+  <footer class="wrap site-footer">
+    Articles are found by Claude using web search and scored 1&ndash;10 for significance. The dashboard updates daily at 7&nbsp;AM Eastern, or on demand with Refresh.
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
