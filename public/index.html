@@ -46,6 +46,18 @@
     Articles are found by Claude using web search and scored 1&ndash;10 for significance. The dashboard updates daily at 7&nbsp;AM Eastern, or on demand with Refresh.
   </footer>
 
+  <dialog id="pw-dialog" aria-labelledby="pw-title">
+    <form id="pw-form">
+      <h2 id="pw-title">Refresh password</h2>
+      <p id="pw-message" class="meta"></p>
+      <input id="pw-input" type="password" autocomplete="current-password" aria-label="Refresh password" required>
+      <div class="dialog-actions">
+        <button id="pw-cancel" class="btn secondary" type="button">Cancel</button>
+        <button class="btn" type="submit">Save and refresh</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -78,7 +78,8 @@ export function timeAgo(date, now = new Date()) {
 	}
 }
 
-/** Seconds -> "N minute(s)", rounded up (used for the refresh cooldown message). */
-export function formatWait(seconds) {
-	return plural(Math.max(1, Math.ceil(seconds / 60)), "minute");
+/** Request headers carrying the refresh password; nothing when there is no password. */
+export function authHeaders(password) {
+	const pw = (password ?? "").trim();
+	return pw ? { Authorization: `Bearer ${pw}` } : {};
 }

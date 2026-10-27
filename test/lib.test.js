@@ -59,12 +59,15 @@ test("timeAgo", () => {
 	assert.equal(timeAgo(new Date("2026-10-25T09:00:00Z"), now), "1 day ago");
 });
 
-import { formatWait } from "../public/lib.js";
+import { authHeaders } from "../public/lib.js";
 
-test("formatWait rounds up to whole minutes in friendly wording", () => {
-	assert.equal(formatWait(5), "1 minute");
-	assert.equal(formatWait(60), "1 minute");
-	assert.equal(formatWait(61), "2 minutes");
-	assert.equal(formatWait(1800), "30 minutes");
-	assert.equal(formatWait(3599), "60 minutes");
+test("authHeaders sends the password as a Bearer token, trimmed", () => {
+	assert.deepEqual(authHeaders("s3cret"), { Authorization: "Bearer s3cret" });
+	assert.deepEqual(authHeaders("  s3cret \n"), { Authorization: "Bearer s3cret" });
+});
+
+test("authHeaders sends nothing for an empty password", () => {
+	assert.deepEqual(authHeaders(""), {});
+	assert.deepEqual(authHeaders("   "), {});
+	assert.deepEqual(authHeaders(null), {});
 });

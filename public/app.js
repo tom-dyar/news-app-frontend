@@ -1,4 +1,4 @@
-import { TOPICS, buildQuery, groupByTopic, scoreClass, lastRefreshed, formatDate, formatWait, plural, safeUrl, timeAgo } from "./lib.js";
+import { TOPICS, buildQuery, groupByTopic, scoreClass, lastRefreshed, formatDate, authHeaders, plural, safeUrl, timeAgo } from "./lib.js";
 
 const API = "https://news-app-backend.tom-dyar.workers.dev";
 
@@ -96,24 +96,64 @@ function reloadQuietly() {
 
 for (const select of [els.topic, els.score, els.limit]) select.addEventListener("change", () => loadArticles());
 
+// The pipeline is password protected on the server. The password is never part of this (public) page:
+// the owner types it once, it is kept in this browser only, and is then sent automatically on every refresh.
+const PASSWORD_KEY = "news-refresh-password";
+const savedPassword = () => {
+	try {
+		return localStorage.getItem(PASSWORD_KEY) || "";
+	} catch {
+		return "";
+	}
+};
+const rememberPassword = (pw) => {
+	try {
+		pw ? localStorage.setItem(PASSWORD_KEY, pw) : localStorage.removeItem(PASSWORD_KEY);
+	} catch {
+		// storage unavailable (private mode): the password just has to be entered again next time
+	}
+};
+
+const dialog = $("pw-dialog");
+const pwInput = $("pw-input");
+
+/** Ask for the refresh password; resolves to the trimmed text, or "" if cancelled. */
+function askPassword(message) {
+	$("pw-message").textContent = message;
+	pwInput.value = "";
+	dialog.returnValue = "";
+	dialog.showModal();
+	pwInput.focus();
+	return new Promise((resolve) => dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok" ? pwInput.value.trim() : ""), { once: true }));
+}
+
+$("pw-form").addEventListener("submit", (e) => {
+	e.preventDefault();
+	dialog.close("ok");
+});
+$("pw-cancel").addEventListener("click", () => dialog.close("cancel"));
+
 els.refresh.addEventListener("click", async () => {
+	let password = savedPassword();
+	if (!password) password = await askPassword("Enter the refresh password. It is saved in this browser only.");
+	if (!password) return;
+
 	els.refresh.disabled = true;
 	els.refresh.classList.add("loading");
 	els.refreshLabel.textContent = "Refreshing…";
 	setStatus("Searching the web for new articles on each topic. This usually takes 30–90 seconds.");
 	try {
-		// Public endpoint: the server rate limits it (one run per hour) and returns counts only.
-		const res = await fetch(`${API}/refresh`, { method: "POST" });
-		if (res.status === 429) {
-			const { retryAfterSeconds } = await res.json();
-			await reloadQuietly();
-			setStatus(`The news was refreshed recently, so it can't be refreshed again yet. Try again in about ${formatWait(retryAfterSeconds)}.`);
+		const res = await fetch(`${API}/agent`, { method: "POST", headers: authHeaders(password) });
+		if (res.status === 401) {
+			rememberPassword("");
+			setStatus("That password was not accepted. Click Refresh to enter it again.", "error");
 			return;
 		}
 		if (!res.ok) throw new Error(`The server returned ${res.status}`);
+		rememberPassword(password);
 		const run = await res.json();
 		await reloadQuietly();
-		const failed = run.topics.filter((t) => t.failed).length;
+		const failed = run.topics.filter((t) => t.error).length;
 		setStatus(
 			`Refresh complete: ${plural(run.inserted, "new article")} added, ${run.skipped} already known.` + (failed ? ` ${plural(failed, "topic")} failed.` : ""),
 			failed ? "error" : "ok",

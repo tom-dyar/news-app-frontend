@@ -69,6 +69,14 @@ select { font: inherit; font-size: .95rem; font-weight: 400; text-transform: non
 .empty { text-align: center; color: var(--muted); padding: 48px 0; }
 .site-footer { color: var(--muted); font-size: .8rem; padding: 40px 20px 32px; }
 
+.btn.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn.secondary:hover:not(:disabled) { background: var(--bg); }
+dialog { width: min(92vw, 380px); padding: 22px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 10px 40px rgba(0, 0, 0, .35); }
+dialog::backdrop { background: rgba(10, 16, 28, .55); }
+dialog h2 { margin: 0 0 4px; font-size: 1.15rem; }
+dialog input { width: 100%; margin: 12px 0 16px; padding: 10px 12px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
 @media (max-width: 560px) {
   .refresh-box { text-align: left; }
   .count { margin-left: 0; width: 100%; }
