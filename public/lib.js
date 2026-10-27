@@ -97,13 +97,11 @@ export const CHAT_MODELS = [
 	{ alias: "sonnet", label: "Capable", hint: "Claude Sonnet: slower, better for analysis" },
 ];
 
-const number = (n) => Number(n).toLocaleString("en-US");
-
 export function formatUsage(usage) {
 	if (!usage) return "";
 	const input = usage.input_tokens ?? 0;
 	const output = usage.output_tokens ?? 0;
-	return `${number(input)} in · ${number(output)} out · ${number(input + output)} total tokens`;
+	return `${formatCount(input)} in · ${formatCount(output)} out · ${formatCount(input + output)} total tokens`;
 }
 
 /** "claude-sonnet-5-5" -> "Sonnet 5.5" */
@@ -126,4 +124,66 @@ export function chatErrorMessage(status, serverMessage) {
 	if (serverMessage && status < 500) return serverMessage;
 	if (status === 429) return "The assistant is busy right now. Try again in a moment, or switch models.";
 	return serverMessage || "The assistant is unavailable right now. Please try again.";
+}
+
+// --- "Under the hood" stats --------------------------------------------------------------------------------------
+
+export function formatCount(n) {
+	return Number(n ?? 0).toLocaleString("en-US");
+}
+
+/** One response's retrieval, token and web search numbers, from the stream's `meta` and `done` data. */
+export function hoodEntry(meta, done, webSources, queries) {
+	const context = meta?.context ?? {};
+	const usage = done?.usage ?? {};
+	const inputTokens = usage.input_tokens ?? 0;
+	const outputTokens = usage.output_tokens ?? 0;
+	const contextTokens = context.approxTokens ?? 0;
+	return {
+		model: done?.model ?? meta?.model ?? "",
+		articles: context.articles ?? 0,
+		candidates: context.candidates ?? 0,
+		contextTokens,
+		inputTokens,
+		outputTokens,
+		totalTokens: inputTokens + outputTokens,
+		contextShare: inputTokens > 0 && contextTokens > 0 ? Math.min(100, Math.round((contextTokens / inputTokens) * 100)) : null,
+		webSearch: meta?.webSearch === true,
+		searches: usage.web_searches ?? 0,
+		queries,
+		webSources: new Set(webSources.map((s) => s.url)).size,
+	};
+}
+
+export function describeEntry(e) {
+	const share = e.contextShare === null ? "" : ` (${e.contextShare}% of input)`;
+	let web = "Off";
+	if (e.webSearch) web = e.searches === 0 ? "On, but not needed for this answer" : `${e.searches} ${e.searches === 1 ? "search" : "searches"} · ${plural(e.webSources, "source")}`;
+	return {
+		database: `${e.articles} of ${plural(e.candidates, "article")} · ≈ ${formatCount(e.contextTokens)} context tokens${share}`,
+		tokens: `${formatCount(e.inputTokens)} in · ${formatCount(e.outputTokens)} out · ${formatCount(e.totalTokens)} total`,
+		web,
+	};
+}
+
+export function sumEntries(entries) {
+	const sum = { responses: entries.length, inputTokens: 0, outputTokens: 0, totalTokens: 0, searches: 0 };
+	for (const e of entries) {
+		sum.inputTokens += e.inputTokens;
+		sum.outputTokens += e.outputTokens;
+		sum.totalTokens += e.totalTokens;
+		sum.searches += e.searches;
+	}
+	return sum;
+}
+
+/** The small badges shown under every answer: input, output and total tokens, plus searches when Claude used the web. */
+export function usageChips(e) {
+	const chips = [
+		{ label: "in", value: formatCount(e.inputTokens) },
+		{ label: "out", value: formatCount(e.outputTokens) },
+		{ label: "total", value: formatCount(e.totalTokens) },
+	];
+	if (e.searches > 0) chips.push({ label: "web searches", value: formatCount(e.searches) });
+	return chips;
 }

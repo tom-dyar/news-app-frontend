@@ -112,3 +112,61 @@ test("chatErrorMessage gives friendly text per status", () => {
 	assert.equal(chatErrorMessage(400, "question is required"), "question is required");
 	assert.match(chatErrorMessage(0), /network|connection/i);
 });
+
+import { describeEntry, formatCount, hoodEntry, sumEntries, usageChips } from "../public/lib.js";
+
+test("formatCount adds thousands separators", () => {
+	assert.equal(formatCount(3169), "3,169");
+	assert.equal(formatCount(0), "0");
+	assert.equal(formatCount(undefined), "0");
+});
+
+const meta = { model: "claude-sonnet-5-5", context: { articles: 12, candidates: 55, approxTokens: 2150 }, webSearch: true };
+const done = { model: "claude-sonnet-5-5", usage: { input_tokens: 3169, output_tokens: 563, web_searches: 2 } };
+
+test("hoodEntry combines the stream's meta and done data", () => {
+	const e = hoodEntry(meta, done, [{ title: "A", url: "https://a.test/" }, { title: "A again", url: "https://a.test/" }, { title: "B", url: "https://b.test/" }], ["q1", "q2"]);
+	assert.deepEqual({ ...e }, {
+		model: "claude-sonnet-5-5", articles: 12, candidates: 55, contextTokens: 2150,
+		inputTokens: 3169, outputTokens: 563, totalTokens: 3732, contextShare: 68,
+		webSearch: true, searches: 2, queries: ["q1", "q2"], webSources: 2,
+	});
+});
+
+test("hoodEntry copes with missing data and never reports a share over 100%", () => {
+	const none = hoodEntry({}, {}, [], []);
+	assert.equal(none.articles, 0);
+	assert.equal(none.totalTokens, 0);
+	assert.equal(none.contextShare, null);
+	assert.equal(hoodEntry({ context: { articles: 1, candidates: 1, approxTokens: 900 } }, { usage: { input_tokens: 400, output_tokens: 1 } }, [], []).contextShare, 100);
+});
+
+test("describeEntry writes clear lines for the database, tokens and web", () => {
+	const lines = describeEntry(hoodEntry(meta, done, [{ title: "B", url: "https://b.test/" }], ["q1", "q2"]));
+	assert.equal(lines.database, "12 of 55 articles · ≈ 2,150 context tokens (68% of input)");
+	assert.equal(lines.tokens, "3,169 in · 563 out · 3,732 total");
+	assert.equal(lines.web, "2 searches · 1 source");
+});
+
+test("describeEntry says when web search was off, or on but unused, and handles one article", () => {
+	const off = describeEntry(hoodEntry({ model: "m", context: { articles: 1, candidates: 1, approxTokens: 200 }, webSearch: false }, { usage: { input_tokens: 600, output_tokens: 50 } }, [], []));
+	assert.equal(off.web, "Off");
+	assert.equal(off.database, "1 of 1 article · ≈ 200 context tokens (33% of input)");
+	const unused = describeEntry(hoodEntry({ model: "m", context: { articles: 0, candidates: 0, approxTokens: 0 }, webSearch: true }, { usage: { input_tokens: 600, output_tokens: 50, web_searches: 0 } }, [], []));
+	assert.equal(unused.web, "On, but not needed for this answer");
+	assert.equal(unused.database, "0 of 0 articles · ≈ 0 context tokens");
+});
+
+test("sumEntries totals tokens and searches across the conversation", () => {
+	const a = hoodEntry(meta, done, [], ["q"]);
+	const b = hoodEntry({ context: { articles: 5, candidates: 55, approxTokens: 900 }, webSearch: false }, { usage: { input_tokens: 1000, output_tokens: 200 } }, [], []);
+	assert.deepEqual(sumEntries([a, b]), { responses: 2, inputTokens: 4169, outputTokens: 763, totalTokens: 4932, searches: 2 });
+	assert.deepEqual(sumEntries([]), { responses: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, searches: 0 });
+});
+
+test("usageChips lists in, out, total (and searches when used) for the badge row under each answer", () => {
+	assert.deepEqual(usageChips(hoodEntry(meta, done, [], ["a", "b"])), [
+		{ label: "in", value: "3,169" }, { label: "out", value: "563" }, { label: "total", value: "3,732" }, { label: "web searches", value: "2" },
+	]);
+	assert.deepEqual(usageChips(hoodEntry({}, { usage: { input_tokens: 10, output_tokens: 5 } }, [], [])).map((c) => c.label), ["in", "out", "total"]);
+});
