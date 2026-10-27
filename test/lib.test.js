@@ -71,3 +71,44 @@ test("authHeaders sends nothing for an empty password", () => {
 	assert.deepEqual(authHeaders("   "), {});
 	assert.deepEqual(authHeaders(null), {});
 });
+
+import { CHAT_MODELS, buildHistory, chatErrorMessage, formatUsage, modelLabel } from "../public/lib.js";
+
+test("chat model choices offer a fast and a capable option, capable by default", () => {
+	assert.deepEqual(CHAT_MODELS.map((m) => m.alias), ["haiku", "sonnet"]);
+	assert.match(CHAT_MODELS[0].label, /fast/i);
+	assert.match(CHAT_MODELS[1].label, /capable/i);
+});
+
+test("formatUsage shows input, output and total tokens with separators", () => {
+	assert.equal(formatUsage({ input_tokens: 3169, output_tokens: 563 }), "3,169 in · 563 out · 3,732 total tokens");
+	assert.equal(formatUsage(undefined), "");
+	assert.equal(formatUsage({ input_tokens: 0, output_tokens: 0 }), "0 in · 0 out · 0 total tokens");
+});
+
+test("modelLabel prettifies Claude model ids", () => {
+	assert.equal(modelLabel("claude-sonnet-5-5"), "Sonnet 5.5");
+	assert.equal(modelLabel("claude-haiku-5-5"), "Haiku 5.5");
+	assert.equal(modelLabel("claude-opus-5"), "Opus 5");
+	assert.equal(modelLabel("something-else"), "something-else");
+});
+
+test("buildHistory keeps the latest turns, starts with a user message, and truncates long text", () => {
+	const turns = Array.from({ length: 14 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: `m${i}` }));
+	const h = buildHistory(turns);
+	assert.ok(h.length <= 10);
+	assert.equal(h[0].role, "user");
+	assert.equal(h.at(-1).content, "m13");
+	assert.equal(buildHistory([{ role: "user", content: "x".repeat(5000) }])[0].content.length, 4000);
+	assert.deepEqual(buildHistory([]), []);
+	assert.deepEqual(buildHistory([{ role: "assistant", content: "orphan" }]), []);
+});
+
+test("chatErrorMessage gives friendly text per status", () => {
+	assert.match(chatErrorMessage(401), /password/i);
+	assert.equal(chatErrorMessage(429, "The model is rate limited right now."), "The model is rate limited right now.");
+	assert.match(chatErrorMessage(429), /busy|rate/i);
+	assert.match(chatErrorMessage(502), /unavailable|failed|try again/i);
+	assert.equal(chatErrorMessage(400, "question is required"), "question is required");
+	assert.match(chatErrorMessage(0), /network|connection/i);
+});

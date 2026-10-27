@@ -1,6 +1,7 @@
+import { API } from "./config.js";
+import { el } from "./dom.js";
 import { TOPICS, buildQuery, groupByTopic, scoreClass, lastRefreshed, formatDate, authHeaders, plural, safeUrl, timeAgo } from "./lib.js";
-
-const API = "https://news-app-backend.tom-dyar.workers.dev";
+import { getPassword, rememberPassword } from "./password.js";
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -8,12 +9,6 @@ const els = {
 	refresh: $("refresh"), refreshLabel: $("refresh-label"), last: $("last-refreshed"),
 	count: $("result-count"), status: $("status"), content: $("content"),
 };
-
-function el(tag, props = {}, ...children) {
-	const node = Object.assign(document.createElement(tag), props);
-	node.append(...children);
-	return node;
-}
 
 function fillSelect(select, options, selected) {
 	select.replaceChildren(...options.map(([value, text]) => el("option", { value, textContent: text, selected: String(value) === String(selected) })));
@@ -96,46 +91,8 @@ function reloadQuietly() {
 
 for (const select of [els.topic, els.score, els.limit]) select.addEventListener("change", () => loadArticles());
 
-// The pipeline is password protected on the server. The password is never part of this (public) page:
-// the owner types it once, it is kept in this browser only, and is then sent automatically on every refresh.
-const PASSWORD_KEY = "news-refresh-password";
-const savedPassword = () => {
-	try {
-		return localStorage.getItem(PASSWORD_KEY) || "";
-	} catch {
-		return "";
-	}
-};
-const rememberPassword = (pw) => {
-	try {
-		pw ? localStorage.setItem(PASSWORD_KEY, pw) : localStorage.removeItem(PASSWORD_KEY);
-	} catch {
-		// storage unavailable (private mode): the password just has to be entered again next time
-	}
-};
-
-const dialog = $("pw-dialog");
-const pwInput = $("pw-input");
-
-/** Ask for the refresh password; resolves to the trimmed text, or "" if cancelled. */
-function askPassword(message) {
-	$("pw-message").textContent = message;
-	pwInput.value = "";
-	dialog.returnValue = "";
-	dialog.showModal();
-	pwInput.focus();
-	return new Promise((resolve) => dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok" ? pwInput.value.trim() : ""), { once: true }));
-}
-
-$("pw-form").addEventListener("submit", (e) => {
-	e.preventDefault();
-	dialog.close("ok");
-});
-$("pw-cancel").addEventListener("click", () => dialog.close("cancel"));
-
 els.refresh.addEventListener("click", async () => {
-	let password = savedPassword();
-	if (!password) password = await askPassword("Enter the refresh password. It is saved in this browser only.");
+	const password = await getPassword("Enter the refresh password. It is saved in this browser only.");
 	if (!password) return;
 
 	els.refresh.disabled = true;
